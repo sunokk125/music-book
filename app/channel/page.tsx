@@ -1,5 +1,5 @@
 import { MainPage } from "@/components";
 
-export default function HomePage() {
+export default function ChannelRoute() {
   return <MainPage />;
 }
