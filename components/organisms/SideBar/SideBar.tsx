@@ -4,6 +4,8 @@ import Link from "next/link";
 import styled from "styled-components";
 import { usePathname } from "next/navigation";
 
+import { useUIStore } from "@/store/ui.store";
+
 const SidebarContainer = styled.aside`
   width: 220px;
   border-right: 1px solid #e5e5e5;
@@ -38,9 +40,13 @@ const menu = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { sidebarOpen, toggleSidebar } = useUIStore();
 
   return (
     <SidebarContainer>
+      <button onClick={toggleSidebar}>
+        {sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
+      </button>
       <MenuList>
         {menu.map((item) => (
           <MenuItem
