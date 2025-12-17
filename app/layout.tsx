@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ReactNode } from "react";
 import { MainLayout } from "@/components/templates/MainLayout/MainLayout";
 import QueryProvider from "@/query-provider";
+import Providers from "./provider";
 
 export const metadata: Metadata = {
   title: "Music Book",
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ko">
       <body>
         <QueryProvider>
-          <MainLayout>{children}</MainLayout>
+          <Providers>
+            <MainLayout>{children}</MainLayout>
+          </Providers>
         </QueryProvider>
       </body>
     </html>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import styled from "styled-components";
 import { usePathname } from "next/navigation";
 
-import { useUIStore } from "@/store/ui.store";
+import { useUIStore } from "@/store//ui.store";
 
 const SidebarContainer = styled.aside`
   width: 220px;
@@ -34,6 +34,7 @@ const MenuItem = styled(Link)<{ $active?: boolean }>`
 
 const menu = [
   { label: "홈", href: "/" },
+  { label: "로그인", href: "/login" },
   { label: "채널", href: "/channel" },
   { label: "팔로우", href: "/follow" },
 ];
