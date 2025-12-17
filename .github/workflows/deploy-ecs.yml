@@ -1,0 +1,72 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: music-book
+  ECS_CLUSTER: music-book-cls
+  ECS_SERVICE: music-book-svc
+  ECS_TASK_FAMILY: music-book-task
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update ECS service
+        env:
+          IMAGE_URI: ${{ steps.build-image.outputs.image }}
+        run: |
+          # 현재 Task Definition 가져오기
+          TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition $ECS_TASK_FAMILY)
+
+          # 새 이미지로 컨테이너 정의 업데이트 (컨테이너 1개라고 가정)
+          NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" \
+            | jq --arg IMAGE_URI "$IMAGE_URI" \
+              '.taskDefinition
+              | .containerDefinitions[0].image = $IMAGE_URI
+              | {family: .family, networkMode, containerDefinitions, taskRoleArn, executionRoleArn, requiresCompatibilities, cpu, memory}')
+
+          echo "$NEW_TASK_DEF" > new-task-def.json
+
+          # 새 Task Definition 등록
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "New Task Definition ARN: $NEW_TASK_DEF_ARN"
+
+          # ECS 서비스에 새 Task Definition 적용
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition $NEW_TASK_DEF_ARN
