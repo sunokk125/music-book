@@ -48,12 +48,23 @@ jobs:
           # 현재 Task Definition 가져오기
           TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition $ECS_TASK_FAMILY)
 
-          # 새 이미지로 컨테이너 정의 업데이트 (컨테이너 1개라고 가정)
+          # Task Definition에서 등록에 불필요/금지된 필드 제거 + 이미지 교체
           NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" \
-            | jq --arg IMAGE_URI "$IMAGE_URI" \
-              '.taskDefinition
+            | jq --arg IMAGE_URI "$IMAGE_URI" '
+              .taskDefinition
               | .containerDefinitions[0].image = $IMAGE_URI
-              | {family: .family, networkMode, containerDefinitions, taskRoleArn, executionRoleArn, requiresCompatibilities, cpu, memory}')
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy
+                )
+              | (if .taskRoleArn == null then del(.taskRoleArn) else . end)
+              | (if .executionRoleArn == null then del(.executionRoleArn) else . end)
+            ')
 
           echo "$NEW_TASK_DEF" > new-task-def.json
 
