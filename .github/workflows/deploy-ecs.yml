@@ -44,15 +44,55 @@ jobs:
       - name: Update ECS service
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
+
+          # ✅ GitHub Variables
+          AUTH_URL: ${{ vars.AUTH_URL }}
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+
+          # ✅ GitHub Secrets
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
+          set -euo pipefail
+
+          # (안전장치) 필수 값이 비어있으면 즉시 실패
+          : "${AUTH_URL:?Missing AUTH_URL (GitHub Variables)}"
+          : "${NEXTAUTH_URL:?Missing NEXTAUTH_URL (GitHub Variables)}"
+          : "${AUTH_SECRET:?Missing AUTH_SECRET (GitHub Secrets)}"
+          : "${NEXTAUTH_SECRET:?Missing NEXTAUTH_SECRET (GitHub Secrets)}"
+          : "${NAVER_CLIENT_ID:?Missing NAVER_CLIENT_ID (GitHub Secrets)}"
+          : "${NAVER_CLIENT_SECRET:?Missing NAVER_CLIENT_SECRET (GitHub Secrets)}"
+
           # 현재 Task Definition 가져오기
           TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition $ECS_TASK_FAMILY)
 
-          # Task Definition에서 등록에 불필요/금지된 필드 제거 + 이미지 교체
+          # jq로 env 업서트(기존 동일 name 제거 후 새 값 추가) + 이미지 교체
           NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" \
-            | jq --arg IMAGE_URI "$IMAGE_URI" '
+            | jq --arg IMAGE_URI "$IMAGE_URI" \
+                 --arg AUTH_URL "$AUTH_URL" \
+                 --arg NEXTAUTH_URL "$NEXTAUTH_URL" \
+                 --arg AUTH_SECRET "$AUTH_SECRET" \
+                 --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
+                 --arg NAVER_CLIENT_ID "$NAVER_CLIENT_ID" \
+                 --arg NAVER_CLIENT_SECRET "$NAVER_CLIENT_SECRET" '
+              def upsert_env($name; $value):
+                .environment = ((.environment // [])
+                  | map(select(.name != $name))
+                  + [{name: $name, value: $value}]
+                );
+
               .taskDefinition
               | .containerDefinitions[0].image = $IMAGE_URI
+              | (.containerDefinitions[0]
+                  | upsert_env("AUTH_URL"; $AUTH_URL)
+                  | upsert_env("NEXTAUTH_URL"; $NEXTAUTH_URL)
+                  | upsert_env("AUTH_SECRET"; $AUTH_SECRET)
+                  | upsert_env("NEXTAUTH_SECRET"; $NEXTAUTH_SECRET)
+                  | upsert_env("NAVER_CLIENT_ID"; $NAVER_CLIENT_ID)
+                  | upsert_env("NAVER_CLIENT_SECRET"; $NAVER_CLIENT_SECRET)
+                )
               | del(
                   .taskDefinitionArn,
                   .revision,
