@@ -45,11 +45,9 @@ jobs:
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
 
-          # ✅ GitHub Variables
           AUTH_URL: ${{ vars.AUTH_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
 
-          # ✅ GitHub Secrets
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -57,7 +55,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # (안전장치) 필수 값이 비어있으면 즉시 실패
           : "${AUTH_URL:?Missing AUTH_URL (GitHub Variables)}"
           : "${NEXTAUTH_URL:?Missing NEXTAUTH_URL (GitHub Variables)}"
           : "${AUTH_SECRET:?Missing AUTH_SECRET (GitHub Secrets)}"
@@ -65,50 +62,57 @@ jobs:
           : "${NAVER_CLIENT_ID:?Missing NAVER_CLIENT_ID (GitHub Secrets)}"
           : "${NAVER_CLIENT_SECRET:?Missing NAVER_CLIENT_SECRET (GitHub Secrets)}"
 
-          # 현재 Task Definition 가져오기
-          TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition $ECS_TASK_FAMILY)
+          TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition "$ECS_TASK_FAMILY")
 
-          # jq로 env 업서트(기존 동일 name 제거 후 새 값 추가) + 이미지 교체
-          NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" \
-            | jq --arg IMAGE_URI "$IMAGE_URI" \
-                 --arg AUTH_URL "$AUTH_URL" \
-                 --arg NEXTAUTH_URL "$NEXTAUTH_URL" \
-                 --arg AUTH_SECRET "$AUTH_SECRET" \
-                 --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
-                 --arg NAVER_CLIENT_ID "$NAVER_CLIENT_ID" \
-                 --arg NAVER_CLIENT_SECRET "$NAVER_CLIENT_SECRET" '
-              def upsert_env($name; $value):
-                .environment = ((.environment // [])
-                  | map(select(.name != $name))
-                  + [{name: $name, value: $value}]
-                );
+          NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
+            --arg IMAGE_URI "$IMAGE_URI" \
+            --arg AUTH_URL "$AUTH_URL" \
+            --arg NEXTAUTH_URL "$NEXTAUTH_URL" \
+            --arg AUTH_SECRET "$AUTH_SECRET" \
+            --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
+            --arg NAVER_CLIENT_ID "$NAVER_CLIENT_ID" \
+            --arg NAVER_CLIENT_SECRET "$NAVER_CLIENT_SECRET" \
+            '
+            def upsert_env($arr; $name; $value):
+              ($arr // [])
+              | map(select(.name != $name))
+              + [{name: $name, value: $value}];
 
-              .taskDefinition
-              | .containerDefinitions[0].image = $IMAGE_URI
-              | (.containerDefinitions[0]
-                  | upsert_env("AUTH_URL"; $AUTH_URL)
-                  | upsert_env("NEXTAUTH_URL"; $NEXTAUTH_URL)
-                  | upsert_env("AUTH_SECRET"; $AUTH_SECRET)
-                  | upsert_env("NEXTAUTH_SECRET"; $NEXTAUTH_SECRET)
-                  | upsert_env("NAVER_CLIENT_ID"; $NAVER_CLIENT_ID)
-                  | upsert_env("NAVER_CLIENT_SECRET"; $NAVER_CLIENT_SECRET)
-                )
-              | del(
-                  .taskDefinitionArn,
-                  .revision,
-                  .status,
-                  .requiresAttributes,
-                  .compatibilities,
-                  .registeredAt,
-                  .registeredBy
-                )
-              | (if .taskRoleArn == null then del(.taskRoleArn) else . end)
-              | (if .executionRoleArn == null then del(.executionRoleArn) else . end)
+            .taskDefinition
+            | .containerDefinitions[0].image = $IMAGE_URI
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "AUTH_URL"; $AUTH_URL)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "NEXTAUTH_URL"; $NEXTAUTH_URL)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "AUTH_SECRET"; $AUTH_SECRET)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "NEXTAUTH_SECRET"; $NEXTAUTH_SECRET)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "NAVER_CLIENT_ID"; $NAVER_CLIENT_ID)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "NAVER_CLIENT_SECRET"; $NAVER_CLIENT_SECRET)
+
+            # register-task-definition에 불필요/금지된 필드 제거
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+            | (if .taskRoleArn == null then del(.taskRoleArn) else . end)
+            | (if .executionRoleArn == null then del(.executionRoleArn) else . end)
+
+            # cpu/memory가 숫자로 들어가면 에러날 수 있어서 문자열로 강제(있을 때만)
+            | (if (.cpu? != null) then .cpu |= tostring else . end)
+            | (if (.memory? != null) then .memory |= tostring else . end)
             ')
 
           echo "$NEW_TASK_DEF" > new-task-def.json
 
-          # 새 Task Definition 등록
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://new-task-def.json \
             --query 'taskDefinition.taskDefinitionArn' \
@@ -116,8 +120,7 @@ jobs:
 
           echo "New Task Definition ARN: $NEW_TASK_DEF_ARN"
 
-          # ECS 서비스에 새 Task Definition 적용
           aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --task-definition $NEW_TASK_DEF_ARN
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$NEW_TASK_DEF_ARN"
