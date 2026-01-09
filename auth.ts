@@ -23,11 +23,6 @@ export const authOptions: NextAuthOptions = {
         token.naverId = resp.id;
         token.name = resp.name ?? token.name;
         token.email = resp.email ?? token.email;
-        console.log("UserId      : " + profile.email);
-        console.log("AccessToken : " + token.accessToken);
-        console.log("NaverID     : " + token.naverId);
-        console.log("Name        : " + token.name);
-        console.log("Email       : " + token.email);
       }
       return token;
     },
