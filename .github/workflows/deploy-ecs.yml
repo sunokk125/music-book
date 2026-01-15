@@ -47,11 +47,11 @@ jobs:
 
           AUTH_URL: ${{ vars.AUTH_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
-
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_REDIRECT_URI: ${{ secrets.NAVER_REDIRECT_URI }}
         run: |
           set -euo pipefail
 
@@ -61,6 +61,7 @@ jobs:
           : "${NEXTAUTH_SECRET:?Missing NEXTAUTH_SECRET (GitHub Secrets)}"
           : "${NAVER_CLIENT_ID:?Missing NAVER_CLIENT_ID (GitHub Secrets)}"
           : "${NAVER_CLIENT_SECRET:?Missing NAVER_CLIENT_SECRET (GitHub Secrets)}"
+          : "${NAVER_REDIRECT_URI:?Missing NAVER_REDIRECT_URI (GitHub Secrets)}"
 
           TASK_DEF_JSON=$(aws ecs describe-task-definition --task-definition "$ECS_TASK_FAMILY")
 
@@ -72,6 +73,7 @@ jobs:
             --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
             --arg NAVER_CLIENT_ID "$NAVER_CLIENT_ID" \
             --arg NAVER_CLIENT_SECRET "$NAVER_CLIENT_SECRET" \
+            --arg NAVER_REDIRECT_URI "$NAVER_REDIRECT_URI" \
             '
             def upsert_env($arr; $name; $value):
               ($arr // [])
@@ -92,6 +94,8 @@ jobs:
                 upsert_env(.containerDefinitions[0].environment; "NAVER_CLIENT_ID"; $NAVER_CLIENT_ID)
             | .containerDefinitions[0].environment =
                 upsert_env(.containerDefinitions[0].environment; "NAVER_CLIENT_SECRET"; $NAVER_CLIENT_SECRET)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "NAVER_REDIRECT_URI"; $NAVER_REDIRECT_URI)
 
             # register-task-definition에 불필요/금지된 필드 제거
             | del(
