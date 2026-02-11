@@ -34,9 +34,9 @@ const MenuItem = styled(Link)<{ $active?: boolean }>`
 
 const menu = [
   { label: "홈", href: "/" },
-  { label: "로그인", href: "/login" },
   { label: "채널", href: "/channel" },
   { label: "팔로우", href: "/follow" },
+  { label: "마이페이지", href: "/mypage" },
 ];
 
 export function Sidebar() {
@@ -45,9 +45,11 @@ export function Sidebar() {
 
   return (
     <SidebarContainer>
-      <button onClick={toggleSidebar}>
-        {sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
-      </button>
+      <div>
+        <button onClick={toggleSidebar}>
+          {sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
+        </button>
+      </div>
       <MenuList>
         {menu.map((item) => (
           <MenuItem

@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 function makeState() {
   return crypto.randomBytes(16).toString("hex");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const mode = req.nextUrl.searchParams.get("mode") ?? "login";
+
   const clientId = process.env.NAVER_CLIENT_ID!;
   const redirectUri = process.env.NAVER_REDIRECT_URI!;
   const state = makeState();
@@ -24,7 +26,15 @@ export async function GET() {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 10, // 10분
+    maxAge: 60 * 3,
+  });
+
+  res.cookies.set("naver_oauth_mode", mode, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 3,
   });
 
   return res;

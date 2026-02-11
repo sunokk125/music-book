@@ -42,8 +42,8 @@ export function Header() {
         <Logo>Music Book</Logo>
       </Link>
       <Nav>
-        <NavButton>알림</NavButton>
-        <NavButton>프로필</NavButton>
+        <Link href="/login">로그인</Link>
+        <Link href="/signup">회원가입</Link>
       </Nav>
     </HeaderContainer>
   );

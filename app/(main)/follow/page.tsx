@@ -1,5 +1,9 @@
 import { MainPage } from "@/components";
 
 export default function FollowRoute() {
-  return <MainPage />;
+  return (
+    <>
+      <h3>Follow</h3>
+    </>
+  );
 }
