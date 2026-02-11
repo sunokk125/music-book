@@ -44,7 +44,7 @@ jobs:
       - name: Update ECS service
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
-
+          BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
           AUTH_URL: ${{ vars.AUTH_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
@@ -56,6 +56,7 @@ jobs:
           set -euo pipefail
 
           : "${AUTH_URL:?Missing AUTH_URL (GitHub Variables)}"
+          : "${BACKEND_BASE_URL:?Missing BACKEND_BASE_URL (GitHub Variables)}"
           : "${NEXTAUTH_URL:?Missing NEXTAUTH_URL (GitHub Variables)}"
           : "${AUTH_SECRET:?Missing AUTH_SECRET (GitHub Secrets)}"
           : "${NEXTAUTH_SECRET:?Missing NEXTAUTH_SECRET (GitHub Secrets)}"
@@ -68,6 +69,7 @@ jobs:
           NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
             --arg IMAGE_URI "$IMAGE_URI" \
             --arg AUTH_URL "$AUTH_URL" \
+            --arg BACKEND_BASE_URL "$BACKEND_BASE_URL" \
             --arg NEXTAUTH_URL "$NEXTAUTH_URL" \
             --arg AUTH_SECRET "$AUTH_SECRET" \
             --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
@@ -84,6 +86,8 @@ jobs:
             | .containerDefinitions[0].image = $IMAGE_URI
             | .containerDefinitions[0].environment =
                 upsert_env(.containerDefinitions[0].environment; "AUTH_URL"; $AUTH_URL)
+            | .containerDefinitions[0].environment =
+                upsert_env(.containerDefinitions[0].environment; "BACKEND_BASE_URL"; $BACKEND_BASE_URL)
             | .containerDefinitions[0].environment =
                 upsert_env(.containerDefinitions[0].environment; "NEXTAUTH_URL"; $NEXTAUTH_URL)
             | .containerDefinitions[0].environment =
